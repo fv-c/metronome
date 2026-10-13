@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "metronome-fvc"
+version = "0.1.0"
+description = "Dependency-free MIDI and WAV metronome generator with cyclic accents"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "GPL-3.0-only"
+authors = [{name = "Francesco Vitucci"}]
+keywords = ["metronome", "midi", "wav", "rhythm", "accent"]
+
+[project.scripts]
+metronome = "metronome.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["metronome*"]
