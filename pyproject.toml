@@ -1,19 +1,26 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "metronome-fvc"
 version = "0.1.0"
-description = "Dependency-free MIDI and WAV metronome generator with cyclic accents"
+description = "MIDI and WAV metronome with cyclic accents and sampled percussion beats"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "GPL-3.0-only"
 authors = [{name = "Francesco Vitucci"}]
 keywords = ["metronome", "midi", "wav", "rhythm", "accent"]
+classifiers = [
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+]
 
 [project.scripts]
 metronome = "metronome.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["metronome*"]
+
+[tool.setuptools.package-data]
+metronome = ["samples/*.wav", "samples/*.json", "samples/*.md"]

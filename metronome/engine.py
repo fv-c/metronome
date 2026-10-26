@@ -14,6 +14,8 @@ import struct
 import sys
 import wave
 
+from .percussion import load_sample, percussion_note
+
 DEFAULT_PITCHES = (72, 76, 81, 84)
 DEFAULT_VELOCITIES = (48, 76, 101, 124)
 TICKS_PER_QUARTER = 960
@@ -37,6 +39,8 @@ class Track:
     tempo_unit: Fraction
     duration_seconds: float
     events: tuple[Click, ...]
+    mode: str = "click"
+    subdivision: int = 1
 
 
 def parse_int_list(value: str) -> tuple[int, ...]:
@@ -85,14 +89,21 @@ def generate_track(
     tempo_unit: Fraction | str = "1/4",
     pitches: tuple[int, ...] | list[int] = DEFAULT_PITCHES,
     velocities: tuple[int, ...] | list[int] = DEFAULT_VELOCITIES,
+    mode: str = "click",
+    subdivision: int = 1,
 ) -> Track:
-    """Generate clicks; weight 0 is the lightest, higher weights are stronger/higher.
+    """Generate clicks or a sampled percussion beat with cyclic accent weights.
 
-    BPM refers to tempo_unit (default quarter note). Clicks occur on each
-    denominator-unit of the time signature. The accent pattern loops freely.
+    BPM refers to tempo_unit (default quarter note). Each denominator-unit has
+    `subdivision` equally spaced hits. The accent pattern loops freely; the
+    percussion kit repeats with the meter. Weight 0 is quiet, never a rest.
     Exactly one of bars or seconds must be supplied.
     """
     numerator, denominator = parse_meter(meter)
+    if mode not in ("click", "percussion"):
+        raise ValueError("mode deve essere click oppure percussion")
+    if type(subdivision) is not int or not 1 <= subdivision <= 32:
+        raise ValueError("subdivision deve essere un intero tra 1 e 32")
     bpm = float(bpm)
     if not math.isfinite(bpm) or bpm <= 0:
         raise ValueError("BPM deve essere un numero positivo e finito")
@@ -102,31 +113,34 @@ def generate_track(
 
     pitches = tuple(pitches)
     velocities = tuple(velocities)
-    if len(pitches) < 3 or len(velocities) != len(pitches):
-        raise ValueError("Occorrono almeno 3 livelli, con note e velocity di uguale lunghezza")
-    if any(not isinstance(note, int) or not 0 <= note <= 127 for note in pitches):
-        raise ValueError("Ogni nota MIDI deve essere un intero tra 0 e 127")
+    if len(velocities) < 3:
+        raise ValueError("Occorrono almeno 3 livelli di velocity")
+    if mode == "click":
+        if len(pitches) != len(velocities):
+            raise ValueError("Occorrono note e velocity di uguale lunghezza")
+        if any(not isinstance(note, int) or not 0 <= note <= 127 for note in pitches):
+            raise ValueError("Ogni nota MIDI deve essere un intero tra 0 e 127")
+        if any(a >= b for a, b in zip(pitches, pitches[1:])):
+            raise ValueError("Le altezze devono crescere con il peso")
     if any(not isinstance(velocity, int) or not 1 <= velocity <= 127 for velocity in velocities):
         raise ValueError("Ogni velocity MIDI deve essere un intero tra 1 e 127")
-    if any(a >= b for a, b in zip(pitches, pitches[1:])):
-        raise ValueError("Le altezze devono crescere con il peso")
     if any(a >= b for a, b in zip(velocities, velocities[1:])):
         raise ValueError("Le velocity devono crescere con il peso")
 
     if pattern is None:
-        levels = (2,) + (1,) * (numerator - 1)
+        levels = (2,) + (1,) * (numerator * subdivision - 1)
     elif isinstance(pattern, str):
         levels = parse_int_list(pattern)
     else:
         levels = tuple(pattern)
-    if not levels or any(not isinstance(level, int) or not 0 <= level < len(pitches) for level in levels):
-        raise ValueError(f"Ogni peso del pattern deve essere un intero tra 0 e {len(pitches) - 1}")
+    if not levels or any(not isinstance(level, int) or not 0 <= level < len(velocities) for level in levels):
+        raise ValueError(f"Ogni peso del pattern deve essere un intero tra 0 e {len(velocities) - 1}")
 
-    pulse_seconds = (60.0 / bpm) * float(Fraction(1, denominator) / unit)
+    pulse_seconds = (60.0 / bpm) * float(Fraction(1, denominator * subdivision) / unit)
     if bars is not None:
         bar_count = _positive_fraction(bars, "bars")
-        duration = float(bar_count) * numerator * pulse_seconds
-        count = math.ceil(bar_count * numerator)
+        duration = float(bar_count) * numerator * subdivision * pulse_seconds
+        count = math.ceil(bar_count * numerator * subdivision)
     else:
         duration = float(seconds)
         if not math.isfinite(duration) or duration <= 0:
@@ -139,10 +153,11 @@ def generate_track(
 
     events = tuple(
         Click(i, i * pulse_seconds, levels[i % len(levels)],
-              pitches[levels[i % len(levels)]], velocities[levels[i % len(levels)]])
+              percussion_note(i, numerator, denominator, subdivision) if mode == "percussion"
+              else pitches[levels[i % len(levels)]], velocities[levels[i % len(levels)]])
         for i in range(count)
     )
-    return Track(numerator, denominator, bpm, unit, duration, events)
+    return Track(numerator, denominator, bpm, unit, duration, events, mode, subdivision)
 
 
 def _vlq(number: int) -> bytes:
@@ -158,17 +173,17 @@ def _vlq(number: int) -> bytes:
 
 
 def write_midi(path: str | Path, track: Track, *, click_ms: float = 90.0) -> None:
-    """Write a type-0 SMF with tempo, time signature and pitched GM woodblock."""
+    """Write type-0 SMF: pitched woodblock or GM drums on channel 10."""
     if not math.isfinite(click_ms) or click_ms <= 0:
         raise ValueError("click_ms deve essere positivo e finito")
     quarter_seconds = (60.0 / track.bpm) * float(Fraction(1, 4) / track.tempo_unit)
     tempo_us = round(quarter_seconds * 1_000_000)
     if not 1 <= tempo_us <= 0xFFFFFF:
         raise ValueError("Il tempo richiesto non è rappresentabile nel file MIDI")
-    pulse_ticks = TICKS_PER_QUARTER * 4 // track.denominator
+    pulse_ticks = Fraction(TICKS_PER_QUARTER * 4, track.denominator * track.subdivision)
     total_ticks = max(1, round(track.duration_seconds / quarter_seconds * TICKS_PER_QUARTER))
     note_ticks = max(1, round((click_ms / 1000.0) / quarter_seconds * TICKS_PER_QUARTER))
-    note_ticks = min(note_ticks, max(1, pulse_ticks - 1))
+    note_ticks = min(note_ticks, max(1, int(pulse_ticks) - 1))
     clocks_per_click = max(1, round(96 / track.denominator))
 
     messages: list[tuple[int, int, bytes]] = [
@@ -176,14 +191,18 @@ def write_midi(path: str | Path, track: Track, *, click_ms: float = 90.0) -> Non
         (0, 1, b"\xff\x51\x03" + tempo_us.to_bytes(3, "big")),
         (0, 2, bytes((0xFF, 0x58, 4, track.numerator, track.denominator.bit_length() - 1,
                       clocks_per_click, 8))),
-        (0, 3, bytes((0xC0, WOODBLOCK_PROGRAM))),
     ]
+    channel = 9 if track.mode == "percussion" else 0
+    if track.mode == "click":
+        messages.append((0, 3, bytes((0xC0, WOODBLOCK_PROGRAM))))
     for click in track.events:
-        start = click.index * pulse_ticks
+        start = round(click.index * pulse_ticks)
+        if start >= total_ticks:
+            continue
         stop = min(total_ticks, start + note_ticks)
         stop = max(start + 1, stop)
-        messages.append((start, 5, bytes((0x90, click.note, click.velocity))))
-        messages.append((stop, 4, bytes((0x80, click.note, 0))))
+        messages.append((start, 5, bytes((0x90 | channel, click.note, click.velocity))))
+        messages.append((stop, 4, bytes((0x80 | channel, click.note, 0))))
     messages.sort(key=lambda item: (item[0], item[1]))
     midi_track = bytearray()
     previous = 0
@@ -239,10 +258,21 @@ def write_wav(
     if not 1 <= total_frames <= 0xFFFFFFFF // 2 - 22:
         raise ValueError("La durata supera i limiti del WAV PCM-16")
     click_frames = max(1, round(click_ms / 1000.0 * sample_rate))
-    templates = {
-        click.level: _woodblock(click.note, click.velocity, click_frames, sample_rate, click.level)
-        for click in track.events
-    }
+    templates = {}
+    samples = {}
+    for click in track.events:
+        key = (click.note, click.velocity)
+        if key in templates:
+            continue
+        if track.mode == "percussion":
+            if click.note not in samples:
+                samples[click.note] = load_sample(click.note, sample_rate)
+            templates[key] = [v * (click.velocity / 127.0) * 0.70
+                              for v in samples[click.note]]
+        else:
+            templates[key] = _woodblock(click.note, click.velocity, click_frames,
+                                       sample_rate, click.level)
+    voice_frames = max((len(voice) for voice in templates.values()), default=0)
     onsets = [round(click.time * sample_rate) for click in track.events]
     block_size = 8192
     with wave.open(str(path), "wb") as output:
@@ -252,11 +282,12 @@ def write_wav(
         for offset in range(0, total_frames, block_size):
             end = min(total_frames, offset + block_size)
             mix = [0.0] * (end - offset)
-            first = bisect_left(onsets, offset - click_frames + 1)
+            first = bisect_left(onsets, offset - voice_frames + 1)
             last = bisect_left(onsets, end)
             for i in range(first, last):
                 onset = onsets[i]
-                clip = templates[track.events[i].level]
+                click = track.events[i]
+                clip = templates[(click.note, click.velocity)]
                 begin = max(onset, offset)
                 finish = min(end, onset + len(clip))
                 for j in range(begin, finish):

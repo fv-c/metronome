@@ -1,0 +1,41 @@
+[
+  {
+    "file": "kick.wav",
+    "freesound_id": 82309,
+    "title": "kick.wav",
+    "author": "KEVOY",
+    "source": "https://freesound.org/people/KEVOY/sounds/82309/",
+    "preview": "https://cdn.freesound.org/previews/82/82309_1299633-hq.mp3",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "preview_sha256": "98109ff217b8093b8639c71932a8c90fc7b7991aa14fae030145d624fa5ffccb",
+    "sha256": "01837b8f347d1e67a7257a4257364dc705638f93dab3af369282a361d55e5290",
+    "processing": "HQ MP3 preview decoded to mono PCM16 44100 Hz; leading/trailing silence trimmed; max 600 ms; peak normalized; 10 ms fade-out."
+  },
+  {
+    "file": "low_tom.wav",
+    "freesound_id": 581467,
+    "title": "Fractanimal_Acoustic_Drum_Kit_Low_Tom_1.wav",
+    "author": "johnnydekk",
+    "source": "https://freesound.org/people/johnnydekk/sounds/581467/",
+    "preview": "https://cdn.freesound.org/previews/581/581467_5790048-hq.mp3",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "preview_sha256": "fb2369cc7c9a854f8391e2fe43d2ee0f843b59765c5de1a4e94d4c442145512d",
+    "sha256": "447b2391e1a53b06cdd31416c967ce439e036cd209bf1ce3f2cdb1c796ac397e",
+    "processing": "HQ MP3 preview decoded to mono PCM16 44100 Hz; leading/trailing silence trimmed; max 600 ms; peak normalized; 10 ms fade-out."
+  },
+  {
+    "file": "mid_tom.wav",
+    "freesound_id": 614411,
+    "title": "TOM_MID_natural_1.wav",
+    "author": "jannevse",
+    "source": "https://freesound.org/people/jannevse/sounds/614411/",
+    "preview": "https://cdn.freesound.org/previews/614/614411_5819399-hq.mp3",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "preview_sha256": "d059022bc836cfe1df31e49b0046360b2f060233a56ee21c665f58129a2f3d47",
+    "sha256": "2b52a832d7948dac907ae3d9617cf361bf2161b6b7f5eae8867d3c458e201b91",
+    "processing": "HQ MP3 preview decoded to mono PCM16 44100 Hz; leading/trailing silence trimmed; max 600 ms; peak normalized; 10 ms fade-out."
+  }
+]

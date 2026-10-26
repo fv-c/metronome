@@ -42,7 +42,7 @@ def midi_messages(data: bytes):
             payload = track[pos:pos + size]
             pos += size
             output.append((tick, "meta", kind, payload))
-        elif status in (0x80, 0x90):
+        elif status & 0xF0 in (0x80, 0x90):
             note, velocity = track[pos:pos + 2]
             pos += 2
             output.append((tick, status, note, velocity))
